@@ -31,7 +31,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		}
 		return nil
 	}
-	infoHandler := slog.NewTextHandler(accessLogBuffer, &slog.HandlerOptions{Level: slog.LevelInfo})
+	infoHandler := slog.NewJSONHandler(accessLogBuffer, &slog.HandlerOptions{Level: slog.LevelInfo})
 	multiHandler := slog.NewMultiHandler(debugHandler, infoHandler)
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
