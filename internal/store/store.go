@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,11 +28,11 @@ const (
 )
 
 type Store struct {
-	logger *log.Logger
+	logger *slog.Logger
 	dir    string
 }
 
-func New(logger *log.Logger, dir string) (*Store, error) {
+func New(logger *slog.Logger, dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}

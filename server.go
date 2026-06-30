@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -13,13 +13,13 @@ import (
 )
 
 type server struct {
-	logger     *log.Logger
+	logger     *slog.Logger
 	httpServer *http.Server
 	store      store.Store
 	cancel     context.CancelFunc
 }
 
-func newServer(logger *log.Logger, store store.Store, port int, cancel context.CancelFunc) *server {
+func newServer(logger *slog.Logger, store store.Store, port int, cancel context.CancelFunc) *server {
 	mux := http.NewServeMux()
 
 	srv := &http.Server{
@@ -54,7 +54,7 @@ func (s *server) start() error {
 		return err
 	}
 	listenPort := ln.Addr().(*net.TCPAddr).Port
-	s.logger.Printf("Linko is running on http://localhost:%d", listenPort)
+	s.logger.Info(fmt.Sprintf("Linko is running on http://localhost:%d", listenPort))
 	return nil
 }
 
