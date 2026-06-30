@@ -17,6 +17,12 @@ const (
 	listenPort = 8899
 )
 
+func deferWrapper(deferredFunc closeFunc) {
+	if err := deferredFunc(); err != nil {
+		fmt.Fprintf(os.Stderr, "error closing logger: %v", err)
+	}
+}
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "error loading env variables: %v", err)
@@ -34,11 +40,12 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	logger, err := initializeLogger()
+	logger, closeLogger, err := initializeLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		return 1
 	}
+	defer deferWrapper(closeLogger)
 	st, err := store.New(logger, dataDir)
 	if err != nil {
 		logger.Printf("failed to create store: %v", err)
