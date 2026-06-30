@@ -24,7 +24,7 @@ func newServer(logger *log.Logger, store store.Store, port int, cancel context.C
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: mux,
+		Handler: requestLogger(logger)(mux),
 	}
 
 	s := &server{

@@ -6,11 +6,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"boot.dev/linko/internal/store"
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -18,6 +18,9 @@ const (
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("error loading env variables: %v", err)
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	httpPort := flag.Int("port", listenPort, "port to listen on")
@@ -30,26 +33,16 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	stdLogger := log.New(os.Stderr, "DEBUG: ", log.LstdFlags)
-	currentDirPath, err := os.Getwd()
+	logger, err := initializeLogger()
 	if err != nil {
-		stdLogger.Printf("failed to fetch current directory path: %v", err)
+		log.Fatal(err)
+	}
+	st, err := store.New(logger, dataDir)
+	if err != nil {
+		logger.Printf("failed to create store: %v", err)
 		return 1
 	}
-	accessLogPath := filepath.Join(currentDirPath, "linko.access.log")
-	accessLogFile, err := os.Create(accessLogPath)
-	if err != nil {
-		stdLogger.Printf("failed to create access log file: %v", err)
-		return 1
-	}
-	defer accessLogFile.Close()
-	accessLogger := log.New(accessLogFile, "INFO: ", log.LstdFlags)
-	st, err := store.New(stdLogger, dataDir)
-	if err != nil {
-		stdLogger.Printf("failed to create store: %v", err)
-		return 1
-	}
-	s := newServer(accessLogger, *st, httpPort, cancel)
+	s := newServer(logger, *st, httpPort, cancel)
 	var serverErr error
 	go func() {
 		serverErr = s.start()
@@ -60,13 +53,13 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	defer cancel()
 
 	if err := s.shutdown(shutdownCtx); err != nil {
-		stdLogger.Printf("failed to shutdown server: %v", err)
+		logger.Printf("failed to shutdown server: %v", err)
 		return 1
 	}
 	if serverErr != nil {
-		stdLogger.Printf("server error: %v", serverErr)
+		logger.Printf("server error: %v", serverErr)
 		return 1
 	}
-	stdLogger.Print("Linko is shutting down")
+	logger.Print("Linko is shutting down")
 	return 0
 }
