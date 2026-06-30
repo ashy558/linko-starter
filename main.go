@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,7 +19,8 @@ const (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("error loading env variables: %v", err)
+		fmt.Fprintf(os.Stderr, "error loading env variables: %v", err)
+		return
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
@@ -35,7 +36,8 @@ func main() {
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
 	logger, err := initializeLogger()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		return 1
 	}
 	st, err := store.New(logger, dataDir)
 	if err != nil {
