@@ -12,10 +12,14 @@ import (
 	"boot.dev/linko/internal/store"
 )
 
+const (
+	listenPort = 8899
+)
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
-	httpPort := flag.Int("port", 8899, "port to listen on")
+	httpPort := flag.Int("port", listenPort, "port to listen on")
 	dataDir := flag.String("data", "./data", "directory to store data")
 	flag.Parse()
 
@@ -34,6 +38,7 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	var serverErr error
 	go func() {
 		serverErr = s.start()
+		fmt.Printf("Linko is running on http://localhost:%d\n", listenPort)
 	}()
 
 	<-ctx.Done()
@@ -48,5 +53,6 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		fmt.Fprintf(os.Stderr, "server error: %v\n", serverErr)
 		return 1
 	}
+	fmt.Print("Linko is shutting down\n")
 	return 0
 }
