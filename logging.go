@@ -35,9 +35,6 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 					Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
 				})
 			}
-			return slog.GroupAttrs("error", slog.Attr{
-				Key:   "message",
-				Value: slog.StringValue(err.Error())})
 		}
 		return a
 	}
