@@ -12,7 +12,17 @@ type closeFunc func() error
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	nilCloseFunc := func() error { return nil }
-	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
+	appendErrorStack := func(groups []string, a slog.Attr) slog.Attr {
+		if a.Key == "error" {
+			err, ok := a.Value.Any().(error)
+			if !ok {
+				return a
+			}
+			return slog.String("error", fmt.Sprintf("%+v", err))
+		}
+		return a
+	}
+	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug, ReplaceAttr: appendErrorStack})
 	logFilePath := os.Getenv("LINKO_LOG_FILE")
 	if logFilePath == "" {
 		return slog.New(debugHandler), nilCloseFunc, nil
@@ -31,7 +41,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		}
 		return nil
 	}
-	infoHandler := slog.NewJSONHandler(accessLogBuffer, &slog.HandlerOptions{Level: slog.LevelInfo})
+	infoHandler := slog.NewJSONHandler(accessLogBuffer, &slog.HandlerOptions{Level: slog.LevelInfo, ReplaceAttr: appendErrorStack})
 	multiHandler := slog.NewMultiHandler(debugHandler, infoHandler)
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
