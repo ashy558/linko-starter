@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	linkoerr "boot.dev/linko/internal/linkoerr"
 	pkgerr "github.com/pkg/errors"
 )
 
@@ -18,26 +19,30 @@ type stackTracer interface {
 	StackTrace() pkgerr.StackTrace
 }
 
+func appendErrorStack(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == "error" {
+		err, ok := a.Value.Any().(error)
+		if !ok {
+			return a
+		}
+		attrs := linkoerr.Attrs(err)
+		attrs = append(attrs, slog.Attr{
+			Key:   "message",
+			Value: slog.StringValue(err.Error()),
+		})
+		if stackErr, ok := errors.AsType[stackTracer](err); ok {
+			attrs = append(attrs, slog.Attr{
+				Key:   "stack_trace",
+				Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+			})
+		}
+		return slog.GroupAttrs("error", attrs...)
+	}
+	return a
+}
+
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	nilCloseFunc := func() error { return nil }
-	appendErrorStack := func(groups []string, a slog.Attr) slog.Attr {
-		if a.Key == "error" {
-			err, ok := a.Value.Any().(error)
-			if !ok {
-				return a
-			}
-			if stackErr, ok := errors.AsType[stackTracer](err); ok {
-				return slog.GroupAttrs("error", slog.Attr{
-					Key:   "message",
-					Value: slog.StringValue(stackErr.Error()),
-				}, slog.Attr{
-					Key:   "stack_trace",
-					Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
-				})
-			}
-		}
-		return a
-	}
 	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug, ReplaceAttr: appendErrorStack})
 	logFilePath := os.Getenv("LINKO_LOG_FILE")
 	if logFilePath == "" {
