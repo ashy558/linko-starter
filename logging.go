@@ -2,13 +2,21 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+
+	pkgerr "github.com/pkg/errors"
 )
 
 type closeFunc func() error
+
+type stackTracer interface {
+	error
+	StackTrace() pkgerr.StackTrace
+}
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	nilCloseFunc := func() error { return nil }
@@ -18,7 +26,18 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			if !ok {
 				return a
 			}
-			return slog.String("error", fmt.Sprintf("%+v", err))
+			if stackErr, ok := errors.AsType[stackTracer](err); ok {
+				return slog.GroupAttrs("error", slog.Attr{
+					Key:   "message",
+					Value: slog.StringValue(stackErr.Error()),
+				}, slog.Attr{
+					Key:   "stack_trace",
+					Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+				})
+			}
+			return slog.GroupAttrs("error", slog.Attr{
+				Key:   "message",
+				Value: slog.StringValue(err.Error())})
 		}
 		return a
 	}
