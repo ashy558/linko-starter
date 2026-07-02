@@ -18,6 +18,11 @@ const (
 	listenPort = 8899
 )
 
+type multiError interface {
+	error
+	Unwrap() []error
+}
+
 func deferWrapper(deferredFunc closeFunc) {
 	if err := deferredFunc(); err != nil {
 		fmt.Fprintf(os.Stderr, "error closing logger: %v", err)
