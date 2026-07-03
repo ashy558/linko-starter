@@ -79,7 +79,7 @@ func httpError(ctx context.Context, w http.ResponseWriter, status int, err error
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	nilCloseFunc := func() error { return nil }
-	noColor := !(isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd()))
+	noColor := !isatty.IsCygwinTerminal(os.Stderr.Fd()) && !isatty.IsTerminal(os.Stderr.Fd())
 	debuggerOpts := &tint.Options{Level: slog.LevelDebug, ReplaceAttr: appendErrorStack, NoColor: noColor}
 	debugHandler := tint.NewHandler(os.Stderr, debuggerOpts)
 	logFilePath := os.Getenv("LINKO_LOG_FILE")
