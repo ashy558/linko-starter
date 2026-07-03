@@ -2,9 +2,15 @@ name: prometheus
 services:
   prometheus:
     container_name: linko-prometheus
-    hostname: linko-prometheus
+    hostname: prometheus
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  node-exporter:
+    container_name: linko-node-exporter
+    hostname: node_exporter
+    image: prom/node-exporter:latest
+    ports:
+      - "127.0.0.1:9100:9100"
