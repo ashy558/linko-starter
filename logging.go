@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +26,16 @@ const (
 	requestIDHeaderKey string     = "X-Request-ID"
 )
 
+var sensitiveKeys = []string{
+	"user",
+	"password",
+	"key",
+	"apikey",
+	"secret",
+	"pin",
+	"creditcardno",
+}
+
 type closeFunc func() error
 
 type stackTracer interface {
@@ -36,8 +48,31 @@ type LogContext struct {
 	Error    error
 }
 
-func appendErrorStack(groups []string, a slog.Attr) slog.Attr {
-	if a.Key == "error" {
+func redactedURL(value slog.Value) (string, error) {
+	str, ok := value.Any().(string)
+	if !ok {
+		return "", fmt.Errorf("not a string")
+	}
+	parsedURL, err := url.Parse(str)
+	if err != nil {
+		return "", fmt.Errorf("not a url")
+	}
+	if _, ok = parsedURL.User.Password(); !ok {
+		return "", fmt.Errorf("no password")
+	}
+	parsedURL.User = url.UserPassword(parsedURL.User.Username(), "REDACTED")
+	return parsedURL.String(), nil
+}
+
+func replaceAttr(groups []string, a slog.Attr) slog.Attr {
+	key := a.Key
+	if slices.Contains(sensitiveKeys, key) {
+		return slog.String(key, "[REDACTED]")
+	}
+	if cleanURL, err := redactedURL(a.Value); err == nil {
+		return slog.String(key, cleanURL)
+	}
+	if key == "error" {
 		err, ok := a.Value.Any().(error)
 		if !ok {
 			return a
@@ -76,12 +111,12 @@ func httpError(ctx context.Context, w http.ResponseWriter, status int, err error
 	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
 		logCtx.Error = err
 	}
-	obfuscatedErrCodes := map[int]struct{}{
-		401: {},
-		403: {},
-		500: {},
+	obfuscatedErrCodes := []int{
+		401,
+		403,
+		500,
 	}
-	if _, ok := obfuscatedErrCodes[status]; ok {
+	if slices.Contains(obfuscatedErrCodes, status) {
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
@@ -91,7 +126,7 @@ func httpError(ctx context.Context, w http.ResponseWriter, status int, err error
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	nilCloseFunc := func() error { return nil }
 	noColor := !isatty.IsCygwinTerminal(os.Stderr.Fd()) && !isatty.IsTerminal(os.Stderr.Fd())
-	debuggerOpts := &tint.Options{Level: slog.LevelDebug, ReplaceAttr: appendErrorStack, NoColor: noColor}
+	debuggerOpts := &tint.Options{Level: slog.LevelDebug, ReplaceAttr: replaceAttr, NoColor: noColor}
 	debugHandler := tint.NewHandler(os.Stderr, debuggerOpts)
 	logFilePath := os.Getenv("LINKO_LOG_FILE")
 	if logFilePath == "" {
@@ -111,7 +146,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		}
 		return nil
 	}
-	infoHandler := slog.NewJSONHandler(lumberjackLogger, &slog.HandlerOptions{Level: slog.LevelInfo, ReplaceAttr: appendErrorStack})
+	infoHandler := slog.NewJSONHandler(lumberjackLogger, &slog.HandlerOptions{Level: slog.LevelInfo, ReplaceAttr: replaceAttr})
 	multiHandler := slog.NewMultiHandler(debugHandler, infoHandler)
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
