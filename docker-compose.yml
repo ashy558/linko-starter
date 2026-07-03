@@ -8,6 +8,8 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   node-exporter:
     container_name: linko-node-exporter
     hostname: node_exporter
