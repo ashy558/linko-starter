@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
 	pkgerr "github.com/pkg/errors"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -86,21 +86,21 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	if logFilePath == "" {
 		return slog.New(debugHandler), nilCloseFunc, nil
 	}
-	accessLogFile, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-	if err != nil {
-		return &slog.Logger{}, nilCloseFunc, fmt.Errorf("failed to open log file: %v", err)
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   logFilePath,
+		MaxSize:    1,
+		MaxAge:     28,
+		MaxBackups: 10,
+		LocalTime:  false,
+		Compress:   true,
 	}
-	accessLogBuffer := bufio.NewWriterSize(accessLogFile, 8192)
 	bufferCloseFunc := func() error {
-		if err := accessLogBuffer.Flush(); err != nil {
-			return err
-		}
-		if err := accessLogFile.Close(); err != nil {
+		if err := lumberjackLogger.Close(); err != nil {
 			return err
 		}
 		return nil
 	}
-	infoHandler := slog.NewJSONHandler(accessLogBuffer, &slog.HandlerOptions{Level: slog.LevelInfo, ReplaceAttr: appendErrorStack})
+	infoHandler := slog.NewJSONHandler(lumberjackLogger, &slog.HandlerOptions{Level: slog.LevelInfo, ReplaceAttr: appendErrorStack})
 	multiHandler := slog.NewMultiHandler(debugHandler, infoHandler)
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
