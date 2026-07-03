@@ -11,7 +11,9 @@ import (
 	"os"
 	"time"
 
-	linkoerr "boot.dev/linko/internal/linkoerr"
+	"boot.dev/linko/internal/linkoerr"
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
 	pkgerr "github.com/pkg/errors"
 )
 
@@ -77,7 +79,11 @@ func httpError(ctx context.Context, w http.ResponseWriter, status int, err error
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	nilCloseFunc := func() error { return nil }
-	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug, ReplaceAttr: appendErrorStack})
+	debuggerOpts := &tint.Options{Level: slog.LevelDebug, ReplaceAttr: appendErrorStack, NoColor: true}
+	if isatty.IsCygwinTerminal(os.Stdout.Fd()) || isatty.IsTerminal(os.Stdout.Fd()) {
+		debuggerOpts.NoColor = false
+	}
+	debugHandler := tint.NewHandler(os.Stderr, debuggerOpts)
 	logFilePath := os.Getenv("LINKO_LOG_FILE")
 	if logFilePath == "" {
 		return slog.New(debugHandler), nilCloseFunc, nil
