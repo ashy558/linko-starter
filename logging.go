@@ -74,6 +74,15 @@ func httpError(ctx context.Context, w http.ResponseWriter, status int, err error
 	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
 		logCtx.Error = err
 	}
+	obfuscatedErrCodes := map[int]struct{}{
+		401: {},
+		403: {},
+		500: {},
+	}
+	if _, ok := obfuscatedErrCodes[status]; ok {
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
 	http.Error(w, err.Error(), status)
 }
 
