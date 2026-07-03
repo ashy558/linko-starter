@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +14,10 @@ import (
 	pkgerr "github.com/pkg/errors"
 )
 
+const (
+	logContextKey contextKey = "log_context"
+)
+
 type closeFunc func() error
 
 type stackTracer interface {
@@ -20,19 +25,9 @@ type stackTracer interface {
 	StackTrace() pkgerr.StackTrace
 }
 
-func errorAttrs(err error) []slog.Attr {
-	attrs := linkoerr.Attrs(err)
-	attrs = append(attrs, slog.Attr{
-		Key:   "message",
-		Value: slog.StringValue(err.Error()),
-	})
-	if stackErr, ok := errors.AsType[stackTracer](err); ok {
-		attrs = append(attrs, slog.Attr{
-			Key:   "stack_trace",
-			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
-		})
-	}
-	return attrs
+type LogContext struct {
+	Username string
+	Error    error
 }
 
 func appendErrorStack(groups []string, a slog.Attr) slog.Attr {
@@ -54,6 +49,28 @@ func appendErrorStack(groups []string, a slog.Attr) slog.Attr {
 		return slog.GroupAttrs("error", errorAttrs(err)...)
 	}
 	return a
+}
+
+func errorAttrs(err error) []slog.Attr {
+	attrs := linkoerr.Attrs(err)
+	attrs = append(attrs, slog.Attr{
+		Key:   "message",
+		Value: slog.StringValue(err.Error()),
+	})
+	if stackErr, ok := errors.AsType[stackTracer](err); ok {
+		attrs = append(attrs, slog.Attr{
+			Key:   "stack_trace",
+			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+		})
+	}
+	return attrs
+}
+
+func httpError(ctx context.Context, w http.ResponseWriter, status int, err error) {
+	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
+		logCtx.Error = err
+	}
+	http.Error(w, err.Error(), status)
 }
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
@@ -86,11 +103,14 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
+			logCtx := &LogContext{}
+			ctx := context.WithValue(r.Context(), logContextKey, logCtx)
+			r = r.WithContext(ctx)
 			spyReader := &spyReadCloser{ReadCloser: r.Body}
 			r.Body = spyReader
 			spyWriter := &spyResponseWriter{ResponseWriter: w}
 			next.ServeHTTP(spyWriter, r)
-			logger.Info("Served request",
+			attrs := []any{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("client_ip", r.RemoteAddr),
@@ -98,7 +118,11 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.Int("response_status", spyWriter.statusCode),
 				slog.Int("response_body_bytes", spyWriter.bytesWritten),
 				slog.Duration("duration", time.Since(start)),
-			)
+			}
+			if logCtx.Username != "" {
+				attrs = append(attrs, slog.String("user", logCtx.Username))
+			}
+			logger.Info("Served request", attrs...)
 		})
 	}
 }
