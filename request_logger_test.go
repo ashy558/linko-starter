@@ -17,6 +17,9 @@ func Test_requestLogger(t *testing.T) {
 			if a.Key == slog.TimeKey {
 				return slog.Time(slog.TimeKey, time.Date(2023, 10, 1, 12, 34, 57, 0, time.UTC))
 			}
+			if a.Key == "duration" {
+				return slog.Duration("duration", time.Duration(0))
+			}
 			return a
 		},
 	}))
@@ -29,13 +32,15 @@ func Test_requestLogger(t *testing.T) {
 	rr := httptest.NewRecorder()
 	loggedHandler.ServeHTTP(rr, req)
 
-	const expectedLogString = `time=2023-10-01T12:34:57.000Z level=INFO msg="Served request" method=GET path=/api/stats client_ip=192.0.2.1:1234` + "\n"
+	const expectedLogString = `time=2023-10-01T12:34:57.000Z level=INFO msg="Served request" method=GET path=/api/stats request_body_bytes=0 response_status=0 response_body_bytes=0 duration=0s client_ip=192.0.2.x request_id=""` + "\n"
 	const expectedStatusCode = http.StatusOK
+	actualLogString := logBuffer.String()
+	actualStatusCode := rr.Code
 
-	if logBuffer.String() != expectedLogString {
-		t.Errorf("Failed request logger test: \nrequest: httptest.NewRequest(\"GET\", \"http://lin.ko/api/stats\", nil) \nexpected: %s, \nactual: %s", expectedLogString, logBuffer.String())
+	if actualLogString != expectedLogString {
+		t.Errorf("Failed request logger test: \nrequest: httptest.NewRequest(\"GET\", \"http://lin.ko/api/stats\", nil) \nexpected: %s, \nactual: %s", expectedLogString, actualLogString)
 	}
-	if rr.Code != expectedStatusCode {
-		t.Errorf("Failed request logger test: \nrequest: httptest.NewRequest(\"GET\", \"http://lin.ko/api/stats\", nil) \nexpected: %d, \nactual: %d", expectedStatusCode, rr.Code)
+	if actualStatusCode != expectedStatusCode {
+		t.Errorf("Failed request logger test: \nrequest: httptest.NewRequest(\"GET\", \"http://lin.ko/api/stats\", nil) \nexpected: %d, \nactual: %d", expectedStatusCode, actualStatusCode)
 	}
 }
