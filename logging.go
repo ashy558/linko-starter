@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"boot.dev/linko/internal/linkoerr"
@@ -114,6 +116,23 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
 
+func redactIP(hostport string) (string, error) {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return "", fmt.Errorf("failed splitting hostport: %w", err)
+	}
+	parsedIP := net.ParseIP(host)
+	if parsedIP == nil {
+		return "", fmt.Errorf("failed parsing host: %w", err)
+	}
+	if parsedIP.DefaultMask() == nil { // returns nil if not IPv4
+		return parsedIP.String(), nil
+	}
+	splitIP := strings.Split(parsedIP.String(), ".")
+	splitIP[3] = "x"
+	return strings.Join(splitIP, "."), nil
+}
+
 func requestIDMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,11 +160,17 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			attrs := []any{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.String("client_ip", r.RemoteAddr),
 				slog.Int("request_body_bytes", spyReader.bytesRead),
 				slog.Int("response_status", spyWriter.statusCode),
 				slog.Int("response_body_bytes", spyWriter.bytesWritten),
 				slog.Duration("duration", time.Since(start)),
+			}
+			redactedIP, err := redactIP(r.RemoteAddr)
+			if err != nil {
+				logger.Error("failed redacting IP", slog.Any("error", err))
+				attrs = append(attrs, slog.Any("error", fmt.Errorf("failed redacting IP: %w", err)))
+			} else {
+				attrs = append(attrs, slog.String("client_ip", redactedIP))
 			}
 			if logCtx.Username != "" {
 				attrs = append(attrs, slog.String("user", logCtx.Username))
