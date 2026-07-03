@@ -14,3 +14,17 @@ services:
     image: prom/node-exporter:latest
     ports:
       - "127.0.0.1:9100:9100"
+  grafana:
+    container_name: linko-grafana
+    hostname: grafana
+    image: grafana/grafana:latest
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    volumes:
+      - data:/var/lib/grafana
+volumes:
+  data:
+    external: false
+    name: grafana-data
