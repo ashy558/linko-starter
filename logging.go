@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	logContextKey contextKey = "log_context"
+	logContextKey      contextKey = "log_context"
+	requestIDHeaderKey string     = "X-Request-ID"
 )
 
 type closeFunc func() error
@@ -99,6 +101,19 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
 
+func requestIDMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestID := r.Header.Get(requestIDHeaderKey)
+			if requestID == "" {
+				requestID = rand.Text()
+			}
+			w.Header().Set(requestIDHeaderKey, requestID)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +140,7 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			if logCtx.Error != nil {
 				attrs = append(attrs, slog.Any("error", logCtx.Error))
 			}
+			attrs = append(attrs, slog.String("request_id", w.Header().Get(requestIDHeaderKey)))
 			logger.Info("Served request", attrs...)
 		})
 	}
