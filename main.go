@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
