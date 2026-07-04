@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,12 +19,21 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
 	pkgerr "github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
 	logContextKey      contextKey = "log_context"
 	requestIDHeaderKey string     = "X-Request-ID"
+)
+
+var httpRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "http_requests_total",
+	Help: "Total number of HTTP requests.",
+},
+	[]string{"method", "path", "status"},
 )
 
 var sensitiveKeys = []string{
@@ -151,6 +161,23 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	return slog.New(multiHandler), bufferCloseFunc, nil
 }
 
+func metricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := &statusRecorder{
+			ResponseWriter: w,
+			status:         http.StatusOK,
+		}
+
+		next.ServeHTTP(rec, r)
+
+		path := r.URL.Path
+		method := r.Method
+		status := strconv.Itoa(rec.status)
+
+		httpRequestsTotal.WithLabelValues(method, path, status).Inc()
+	})
+}
+
 func redactIP(hostport string) (string, error) {
 	host, _, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -168,17 +195,15 @@ func redactIP(hostport string) (string, error) {
 	return strings.Join(splitIP, "."), nil
 }
 
-func requestIDMiddleware() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestID := r.Header.Get(requestIDHeaderKey)
-			if requestID == "" {
-				requestID = rand.Text()
-			}
-			w.Header().Set(requestIDHeaderKey, requestID)
-			next.ServeHTTP(w, r)
-		})
-	}
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := r.Header.Get(requestIDHeaderKey)
+		if requestID == "" {
+			requestID = rand.Text()
+		}
+		w.Header().Set(requestIDHeaderKey, requestID)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
