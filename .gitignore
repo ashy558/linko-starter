@@ -5,3 +5,5 @@ vendor/
 *.log
 *.gz
 .env
+*.txt
+*.prof
