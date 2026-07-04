@@ -7,3 +7,4 @@ vendor/
 .env
 *.txt
 *.prof
+*.svg
