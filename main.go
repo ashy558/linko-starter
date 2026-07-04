@@ -48,6 +48,12 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
+	tracingCloser, err := initTracing(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize tracking: %v\n", err)
+		return 1
+	}
+	defer tracingCloser(context.Background())
 	logger, closeLogger, err := initializeLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)

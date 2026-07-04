@@ -12,6 +12,7 @@ import (
 
 	"boot.dev/linko/internal/store"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type server struct {
@@ -24,9 +25,10 @@ type server struct {
 func newServer(logger *slog.Logger, store store.Store, port int, cancel context.CancelFunc) *server {
 	mux := http.NewServeMux()
 
+	h := otelhttp.NewHandler(mux, "http.server")
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: requestLogger(logger)(requestIDMiddleware(metricsMiddleware(mux))),
+		Handler: requestLogger(logger)(requestIDMiddleware(metricsMiddleware(h))),
 	}
 
 	s := &server{
