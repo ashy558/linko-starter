@@ -54,7 +54,7 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		return 1
 	}
 	defer tracingCloser(context.Background())
-	logger, closeLogger, err := initializeLogger()
+	logger, loggerCloser, err := initializeLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		return 1
