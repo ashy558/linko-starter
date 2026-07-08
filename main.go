@@ -25,7 +25,7 @@ type multiError interface {
 	Unwrap() []error
 }
 
-func deferWrapper(deferredFunc closeFunc) {
+func closerWrapper(deferredFunc closeFunc) {
 	if err := deferredFunc(); err != nil {
 		fmt.Fprintf(os.Stderr, "error closing logger: %v", err)
 	}
@@ -59,7 +59,7 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		return 1
 	}
-	defer deferWrapper(closeLogger)
+	defer closerWrapper(loggerCloser)
 	hostname, err := os.Hostname()
 	if err != nil {
 		logger.Error("failed to fetch hostname", slog.Any("error", err))
