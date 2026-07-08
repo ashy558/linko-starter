@@ -18,16 +18,6 @@ type ShortURL struct {
 	Err       error  `json:"-"`
 }
 
-type storeErr string
-
-func (e storeErr) Error() string {
-	return string(e)
-}
-
-const (
-	ErrNotFound = storeErr("not found")
-)
-
 type Store struct {
 	logger *slog.Logger
 	dir    string
