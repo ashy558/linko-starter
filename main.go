@@ -34,7 +34,7 @@ func closerWrapper(deferredFunc closeFunc) {
 func main() {
 	if err := godotenv.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "error loading env variables: %v", err)
-		return
+		os.Exit(1)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
